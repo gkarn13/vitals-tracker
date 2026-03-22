@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vitals Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --bg:#0b0d11;--s1:#13161e;--s2:#1a1e2a;--s3:#222636;
+  --border:#2a2f42;--border2:#363c54;
+  --green:#3ddc84;--blue:#4db8ff;--red:#ff5c5c;--amber:#ffb347;--purple:#a78bfa;
+  --text:#dde3f0;--muted:#5a6380;--muted2:#8090b0;
+  --mono:'IBM Plex Mono',monospace;--sans:'DM Sans',sans-serif;
+  --radius:10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(circle,rgba(77,184,255,0.06) 1px,transparent 1px);background-size:28px 28px;pointer-events:none;z-index:0;}
+
+.shell{position:relative;z-index:1;display:grid;grid-template-columns:320px 1fr;grid-template-rows:56px 1fr;height:100vh;overflow:hidden;}
+
+/* Topbar */
+.topbar{grid-column:1/-1;background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 24px;}
+.tb-icon{width:30px;height:30px;border-radius:8px;background:rgba(61,220,132,0.1);border:1px solid rgba(61,220,132,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;}
+.tb-title{font-size:15px;font-weight:500;letter-spacing:-0.3px;}
+.tb-title span{color:var(--green);}
+.tb-sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.5px;margin-left:auto;}
+.tb-count{font-family:var(--mono);font-size:11px;background:rgba(61,220,132,0.08);border:1px solid rgba(61,220,132,0.2);color:var(--green);padding:3px 10px;border-radius:6px;}
+
+/* Left panel */
+.left{background:var(--s1);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;}
+
+.form-sec{padding:20px;border-bottom:1px solid var(--border);}
+.sec-title{font-family:var(--mono);font-size:10px;color:var(--green);letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.sec-title::before{content:'';width:16px;height:1px;background:var(--green);opacity:0.5;}
+
+.field{margin-bottom:11px;}
+.field label{display:block;font-family:var(--mono);font-size:9px;color:var(--muted2);letter-spacing:0.5px;margin-bottom:5px;}
+.field input{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:13px;padding:9px 12px;border-radius:7px;outline:none;transition:border-color 0.15s,background 0.15s;}
+.field input:focus{border-color:var(--blue);background:var(--s3);}
+.field input::placeholder{color:var(--muted);}
+.field input.err{border-color:var(--red);}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+.btn-add{width:100%;padding:11px;background:rgba(61,220,132,0.1);border:1px solid rgba(61,220,132,0.3);color:var(--green);font-family:var(--mono);font-size:12px;border-radius:8px;cursor:pointer;letter-spacing:0.5px;transition:all 0.15s;margin-top:4px;}
+.btn-add:hover{background:rgba(61,220,132,0.2);border-color:var(--green);}
+.btn-add:active{transform:scale(0.98);}
+.err-msg{font-family:var(--mono);font-size:10px;color:var(--red);margin-top:8px;min-height:14px;}
+
+.search-bar{padding:12px 20px;border-bottom:1px solid var(--border);}
+.search-in{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 12px;border-radius:7px;outline:none;}
+.search-in:focus{border-color:var(--blue);}
+.search-in::placeholder{color:var(--muted);}
+
+.recs-label{padding:10px 20px 6px;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.5px;}
+.recs-list{flex:1;overflow-y:auto;padding:0 12px 12px;}
+
+.rcard{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
+.rcard:hover{border-color:var(--border2);background:var(--s3);}
+.rcard.imp{border-left:3px solid var(--purple);}
+.rc-top{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+.rc-date{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--blue);flex:1;}
+.badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:4px;}
+.b-ok{background:rgba(61,220,132,0.12);color:var(--green);}
+.b-el{background:rgba(255,179,71,0.12);color:var(--amber);}
+.b-hi{background:rgba(255,92,92,0.12);color:var(--red);}
+.b-im{background:rgba(167,139,250,0.12);color:var(--purple);}
+.rc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.rv{text-align:center;}
+.rv-l{font-family:var(--mono);font-size:9px;color:var(--muted);}
+.rv-v{font-family:var(--mono);font-size:12px;font-weight:500;}
+.no-recs{text-align:center;padding:32px 16px;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8;}
+
+/* Right panel */
+.right{overflow-y:auto;padding:20px;background:var(--bg);}
+
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
+.sc{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+.sc-l{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:0.5px;margin-bottom:6px;}
+.sc-v{font-size:20px;font-weight:500;}
+.sc-s{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;}
+
+.section{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:16px;}
+.shdr{font-family:var(--mono);font-size:10px;color:var(--blue);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;}
+.shdr::before{content:'';width:16px;height:1px;background:var(--blue);opacity:0.5;display:inline-block;margin-right:8px;}
+
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;}
+.tab{padding:5px 12px;border-radius:6px;font-family:var(--mono);font-size:10px;letter-spacing:0.3px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all 0.12s;}
+.tab.on{background:rgba(77,184,255,0.1);border-color:var(--blue);color:var(--blue);}
+
+.cwrap{position:relative;}
+
+.corrg{display:grid;gap:3px;}
+.ccell{display:flex;align-items:center;justify-content:center;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:500;min-height:44px;}
+
+.ig{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ic{background:var(--s2);border-radius:8px;padding:13px 14px;border-left:3px solid var(--green);font-size:13px;line-height:1.6;}
+.it{font-weight:500;font-size:12px;margin-bottom:3px;}
+.ib{color:var(--muted2);font-size:11px;line-height:1.65;}
+
+.dt{width:100%;border-collapse:collapse;font-size:12px;}
+.dt th{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);letter-spacing:0.5px;}
+.dt td{padding:9px 10px;border-bottom:1px solid rgba(42,47,66,0.6);font-family:var(--mono);font-size:11px;}
+.dt tr:last-child td{border-bottom:none;}
+.dt tr.imp td{color:var(--purple);}
+.dt tr:hover td{background:rgba(255,255,255,0.02);}
+
+.lagrow{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.lagk{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:52px;}
+.lagtrack{flex:1;height:18px;background:var(--s2);border-radius:3px;overflow:hidden;position:relative;}
+.lagfill{position:absolute;top:2px;bottom:2px;left:0;border-radius:2px;opacity:0.75;}
+.lagv{font-family:var(--mono);font-size:10px;min-width:50px;text-align:right;}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100;display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--s1);border:1px solid var(--border2);border-radius:14px;padding:24px;width:360px;box-shadow:0 24px 60px rgba(0,0,0,0.5);}
+.modal-title{font-family:var(--mono);font-size:11px;color:var(--blue);letter-spacing:1px;text-transform:uppercase;margin-bottom:20px;}
+.modal-acts{display:flex;gap:8px;margin-top:20px;}
+.btn-save{flex:1;padding:10px;background:rgba(77,184,255,0.12);border:1px solid rgba(77,184,255,0.35);color:var(--blue);font-family:var(--mono);font-size:11px;border-radius:7px;cursor:pointer;letter-spacing:0.5px;transition:all 0.12s;}
+.btn-save:hover{background:rgba(77,184,255,0.22);}
+.btn-cancel{flex:1;padding:10px;background:transparent;border:1px solid var(--border);color:var(--muted2);font-family:var(--mono);font-size:11px;border-radius:7px;cursor:pointer;transition:all 0.12s;}
+.btn-cancel:hover{border-color:var(--border2);color:var(--text);}
+.btn-del{padding:10px 14px;background:rgba(255,92,92,0.1);border:1px solid rgba(255,92,92,0.3);color:var(--red);font-family:var(--mono);font-size:11px;border-radius:7px;cursor:pointer;transition:all 0.12s;}
+.btn-del:hover{background:rgba(255,92,92,0.2);}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;z-index:200;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:10px 18px;font-family:var(--mono);font-size:11px;color:var(--text);transform:translateY(80px);opacity:0;transition:all 0.25s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.ok{border-left:3px solid var(--green);}
+.toast.err{border-left:3px solid var(--red);}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+.cg{color:var(--green);} .cb{color:var(--blue);} .ca{color:var(--amber);} .cr{color:var(--red);} .cp{color:var(--purple);}
+
+@media(max-width:800px){
+  .shell{grid-template-columns:1fr;grid-template-rows:56px auto 1fr;height:auto;overflow:visible;}
+  .left{border-right:none;border-bottom:1px solid var(--border);}
+  .stat-row{grid-template-columns:repeat(3,1fr);}
+  .ig{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <div class="tb-icon">&#9829;</div>
+    <div class="tb-title">Vitals <span>Tracker</span></div>
+    <div class="tb-sub">PERSONAL HEALTH MONITOR</div>
+    <div class="tb-count" id="tb-count">0 records</div>
+  </header>
+
+  <aside class="left">
+    <div class="form-sec">
+      <div class="sec-title">Log reading</div>
+      <div class="field">
+        <label>DATE</label>
+        <input type="date" id="f-date" />
+      </div>
+      <div class="row2">
+        <div class="field"><label>WEIGHT (KG)</label><input type="number" id="f-wt" step="0.1" min="20" max="200" placeholder="65.0" /></div>
+        <div class="field"><label>HR (BPM)</label><input type="number" id="f-hr" min="30" max="220" placeholder="72" /></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>SYSTOLIC BP</label><input type="number" id="f-sbp" min="60" max="250" placeholder="120" /></div>
+        <div class="field"><label>DIASTOLIC BP</label><input type="number" id="f-dbp" min="40" max="150" placeholder="80" /></div>
+      </div>
+      <div class="field"><label>SPO2 (%)</label><input type="number" id="f-sp" step="0.1" min="70" max="100" placeholder="98" /></div>
+      <div class="err-msg" id="ferr"></div>
+      <button class="btn-add" onclick="addRecord()">+ ADD &amp; ANALYSE</button>
+    </div>
+
+    <div class="search-bar">
+      <input class="search-in" type="text" id="search" placeholder="Search by date..." oninput="renderList()" />
+    </div>
+    <div class="recs-label" id="recs-label">Records</div>
+    <div class="recs-list" id="recs-list"></div>
+  </aside>
+
+  <main class="right" id="right">
+    <div style="text-align:center;padding:80px 40px;">
+      <div style="font-size:40px;opacity:0.15;margin-bottom:20px">&#9829;</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);line-height:2.2">
+        Add your first reading on the left.<br>Analysis updates automatically.
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-title">Edit / Delete Reading</div>
+    <input type="hidden" id="eid" />
+    <div class="field"><label>DATE</label><input type="date" id="e-date" /></div>
+    <div class="row2">
+      <div class="field"><label>WEIGHT (KG)</label><input type="number" id="e-wt" step="0.1" min="20" max="200" /></div>
+      <div class="field"><label>HR (BPM)</label><input type="number" id="e-hr" min="30" max="220" /></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>SYSTOLIC BP</label><input type="number" id="e-sbp" min="60" max="250" /></div>
+      <div class="field"><label>DIASTOLIC BP</label><input type="number" id="e-dbp" min="40" max="150" /></div>
+    </div>
+    <div class="field"><label>SPO2 (%)</label><input type="number" id="e-sp" step="0.1" min="70" max="100" /></div>
+    <div class="modal-acts">
+      <button class="btn-del" onclick="delFromModal()">Delete</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORE = 'vt_v3';
+const SEED = [
+  {date:"2026-03-02",wt:65.6,sbp:132,dbp:79,hr:91,sp:96,  imp:false},
+  {date:"2026-03-03",wt:65.2,sbp:126,dbp:79,hr:83,sp:96,  imp:true},
+  {date:"2026-03-04",wt:64.9,sbp:120,dbp:80,hr:76,sp:96,  imp:false},
+  {date:"2026-03-05",wt:64.5,sbp:120,dbp:80,hr:83,sp:97,  imp:false},
+  {date:"2026-03-06",wt:63.9,sbp:130,dbp:80,hr:76,sp:96,  imp:false},
+  {date:"2026-03-07",wt:62.8,sbp:140,dbp:90,hr:76,sp:96,  imp:false},
+  {date:"2026-03-08",wt:62.6,sbp:130,dbp:80,hr:76,sp:96,  imp:false},
+  {date:"2026-03-09",wt:61.6,sbp:127,dbp:79,hr:75,sp:96.5,imp:true},
+  {date:"2026-03-10",wt:60.9,sbp:124,dbp:79,hr:74,sp:97,  imp:false},
+  {date:"2026-03-11",wt:59.9,sbp:126,dbp:76,hr:78,sp:99,  imp:true},
+  {date:"2026-03-12",wt:58.9,sbp:132,dbp:81,hr:77,sp:99,  imp:false},
+  {date:"2026-03-13",wt:58.6,sbp:128,dbp:79,hr:77,sp:99,  imp:false},
+  {date:"2026-03-14",wt:56.9,sbp:123,dbp:74,hr:74,sp:99,  imp:true},
+  {date:"2026-03-15",wt:57.4,sbp:132,dbp:76,hr:78,sp:99,  imp:true},
+  {date:"2026-03-16",wt:56.6,sbp:122,dbp:82,hr:79,sp:99,  imp:true},
+  {date:"2026-03-17",wt:56.9,sbp:129,dbp:78,hr:81,sp:99,  imp:true},
+  {date:"2026-03-18",wt:56.6,sbp:137,dbp:75,hr:82,sp:99,  imp:true},
+  {date:"2026-03-19",wt:57.0,sbp:129,dbp:81,hr:81,sp:99,  imp:true},
+  {date:"2026-03-20",wt:58.2,sbp:141,dbp:74,hr:85,sp:99,  imp:true},
+  {date:"2026-03-21",wt:58.5,sbp:140,dbp:75,hr:88,sp:99,  imp:true},
+  {date:"2026-03-22",wt:59.5,sbp:127,dbp:70,hr:71,sp:99,  imp:true},
+];
+
+let recs = [], cInst = null, bInst = null, activeTab = 'sbp', editId = null;
+
+function init() {
+  try {
+    const s = localStorage.getItem(STORE);
+    recs = s ? JSON.parse(s) : SEED.map((r,i) => ({...r, id:'r'+i}));
+  } catch(e) {
+    recs = SEED.map((r,i) => ({...r, id:'r'+i}));
+  }
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  persist(); render();
+}
+
+function persist() {
+  try { localStorage.setItem(STORE, JSON.stringify(recs)); } catch(e) {}
+}
+
+function byDate() { return [...recs].sort((a,b) => a.date.localeCompare(b.date)); }
+
+// ── Add ──────────────────────────────────────────────────────────────────────
+function addRecord() {
+  const date = document.getElementById('f-date').value;
+  const wt   = parseFloat(document.getElementById('f-wt').value);
+  const hr   = parseInt(document.getElementById('f-hr').value);
+  const sbp  = parseInt(document.getElementById('f-sbp').value);
+  const dbp  = parseInt(document.getElementById('f-dbp').value);
+  const sp   = parseFloat(document.getElementById('f-sp').value);
+
+  ['f-date','f-hr','f-sbp','f-dbp'].forEach(id => document.getElementById(id).classList.remove('err'));
+  const errs = [];
+  if (!date) { errs.push('date'); document.getElementById('f-date').classList.add('err'); }
+  if (!hr || hr<30||hr>220) { errs.push('HR'); document.getElementById('f-hr').classList.add('err'); }
+  if (!sbp||sbp<60||sbp>250) { errs.push('SBP'); document.getElementById('f-sbp').classList.add('err'); }
+  if (!dbp||dbp<40||dbp>150) { errs.push('DBP'); document.getElementById('f-dbp').classList.add('err'); }
+
+  if (errs.length) { document.getElementById('ferr').textContent = 'Required: '+errs.join(', '); return; }
+  if (recs.find(r => r.date===date)) { document.getElementById('ferr').textContent = 'Record for this date exists. Click it in the list to edit.'; return; }
+
+  document.getElementById('ferr').textContent = '';
+  recs.push({ id:'r'+Date.now(), date, hr, sbp, dbp, imp:false,
+    wt: isNaN(wt)?null:wt, sp: isNaN(sp)?null:sp });
+  persist(); render();
+  toast('Added '+fmtD(date), 'ok');
+  ['f-wt','f-hr','f-sbp','f-dbp','f-sp'].forEach(id => document.getElementById(id).value='');
+}
+
+// ── Edit ─────────────────────────────────────────────────────────────────────
+function openEdit(id) {
+  const r = recs.find(x=>x.id===id); if (!r) return;
+  editId = id;
+  document.getElementById('eid').value   = id;
+  document.getElementById('e-date').value = r.date;
+  document.getElementById('e-wt').value  = r.wt??'';
+  document.getElementById('e-hr').value  = r.hr;
+  document.getElementById('e-sbp').value = r.sbp;
+  document.getElementById('e-dbp').value = r.dbp;
+  document.getElementById('e-sp').value  = r.sp??'';
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); editId=null; }
+
+function saveEdit() {
+  const id  = document.getElementById('eid').value;
+  const date= document.getElementById('e-date').value;
+  const wt  = parseFloat(document.getElementById('e-wt').value);
+  const hr  = parseInt(document.getElementById('e-hr').value);
+  const sbp = parseInt(document.getElementById('e-sbp').value);
+  const dbp = parseInt(document.getElementById('e-dbp').value);
+  const sp  = parseFloat(document.getElementById('e-sp').value);
+  if (!date||!hr||!sbp||!dbp) { toast('Date, HR, SBP, DBP are required','err'); return; }
+  if (recs.find(r=>r.date===date&&r.id!==id)) { toast('Another record exists for this date','err'); return; }
+  const i = recs.findIndex(r=>r.id===id); if (i===-1) return;
+  recs[i] = { ...recs[i], date, hr, sbp, dbp, imp:false, wt:isNaN(wt)?null:wt, sp:isNaN(sp)?null:sp };
+  persist(); render(); closeModal(); toast('Updated', 'ok');
+}
+
+function delRecord(id) { recs=recs.filter(r=>r.id!==id); persist(); render(); toast('Deleted','ok'); }
+function delFromModal() { if(editId){delRecord(editId);closeModal();} }
+
+document.getElementById('modal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  renderList();
+  renderAnalysis();
+  document.getElementById('tb-count').textContent = recs.length+' record'+(recs.length!==1?'s':'');
+}
+
+function bpBadge(sbp) { return sbp<120?['Normal','b-ok']:sbp<130?['Elevated','b-el']:['High','b-hi']; }
+
+function renderList() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const data = byDate().filter(r=>!q||r.date.includes(q)||fmtD(r.date).includes(q));
+  document.getElementById('recs-label').textContent = data.length+' of '+recs.length+' records';
+  if (!data.length) { document.getElementById('recs-list').innerHTML='<div class="no-recs">No records found.</div>'; return; }
+  document.getElementById('recs-list').innerHTML = data.map(r=>{
+    const [lbl,cls]=bpBadge(r.sbp);
+    return `<div class="rcard${r.imp?' imp':''}" onclick="openEdit('${r.id}')">
+      <div class="rc-top">
+        <span class="rc-date">${fmtD(r.date)}</span>
+        <span class="badge ${cls}">${lbl}</span>
+        ${r.imp?'<span class="badge b-im">~</span>':''}
+      </div>
+      <div class="rc-grid">
+        <div class="rv"><div class="rv-l">BP</div><div class="rv-v" style="color:${r.sbp>=140?'var(--red)':r.sbp>=130?'var(--amber)':'var(--green)'}">${r.sbp}/${r.dbp}</div></div>
+        <div class="rv"><div class="rv-l">HR</div><div class="rv-v ca">${r.hr}</div></div>
+        <div class="rv"><div class="rv-l">SpO2</div><div class="rv-v" style="color:${r.sp&&r.sp<95?'var(--red)':'var(--green)'}">${r.sp!=null?r.sp+'%':'—'}</div></div>
+        <div class="rv"><div class="rv-l">Wt</div><div class="rv-v cb">${r.wt!=null?r.wt:'—'}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Analysis ──────────────────────────────────────────────────────────────────
+function renderAnalysis() {
+  const data = byDate(); if (!data.length) return;
+  const avg = a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;
+  const std = a=>{ const m=avg(a); return Math.sqrt(a.map(x=>(x-m)**2).reduce((s,v)=>s+v,0)/a.length); };
+  const sbps=data.map(d=>d.sbp), dbps=data.map(d=>d.dbp), hrs=data.map(d=>d.hr);
+  const wts=data.filter(d=>d.wt!=null).map(d=>d.wt);
+  const sps=data.filter(d=>d.sp!=null).map(d=>d.sp);
+  const aS=avg(sbps), aH=avg(hrs), aW=wts.length?avg(wts):null, aSp=sps.length?avg(sps):null;
+  const wtD=wts.length>=2?wts.at(-1)-wts[0]:null;
+  const sbpD=sbps.at(-1)-sbps[0];
+
+  document.getElementById('right').innerHTML=`
+  <div class="stat-row">
+    <div class="sc"><div class="sc-l">PERIOD</div><div class="sc-v cg">${data.length}</div><div class="sc-s">${fmtD(data[0].date)} – ${fmtD(data.at(-1).date)}</div></div>
+    <div class="sc"><div class="sc-l">AVG WEIGHT</div><div class="sc-v cb">${aW!=null?aW.toFixed(1):'—'}<span style="font-size:12px;color:var(--muted)"> kg</span></div><div class="sc-s" style="color:${wtD!=null&&wtD<0?'var(--green)':'var(--amber)'}">${wtD!=null?(wtD<0?'&#9660; ':'&#9650; ')+Math.abs(wtD).toFixed(1)+' kg':'—'}</div></div>
+    <div class="sc"><div class="sc-l">AVG BP</div><div class="sc-v ${aS>=140?'cr':aS>=130?'ca':'cg'}">${Math.round(aS)}/${Math.round(avg(dbps))}</div><div class="sc-s">${aS<120?'Normal':aS<130?'Elevated':'Stage 1 HTN'}</div></div>
+    <div class="sc"><div class="sc-l">AVG HR</div><div class="sc-v ca">${Math.round(aH)}<span style="font-size:12px;color:var(--muted)"> bpm</span></div><div class="sc-s">Range ${Math.min(...hrs)}–${Math.max(...hrs)}</div></div>
+    <div class="sc"><div class="sc-l">AVG SPO2</div><div class="sc-v ${aSp&&aSp>=95?'cg':'cr'}">${aSp!=null?aSp.toFixed(1):'—'}<span style="font-size:12px">%</span></div><div class="sc-s">${aSp!=null?(aSp>=95?'Normal':'Low'):'no data'}</div></div>
+  </div>
+
+  <div class="section">
+    <div class="shdr">Trend analysis</div>
+    <div class="tabs" id="ttabs"></div>
+    <div class="cwrap" style="height:240px"><canvas id="tc"></canvas></div>
+  </div>
+
+  <div class="section">
+    <div class="shdr">Blood pressure</div>
+    <div class="cwrap" style="height:200px"><canvas id="bc"></canvas></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="section" style="margin-bottom:0"><div class="shdr">Correlation matrix</div><div id="corr"></div></div>
+    <div class="section" style="margin-bottom:0"><div class="shdr">Weight &#8594; SBP lag</div><div id="lag"></div></div>
+  </div>
+
+  <div class="section"><div class="shdr">Anomaly detection (SPC 2&#963;)</div><div id="anom"></div></div>
+  <div class="section"><div class="shdr">Insights</div><div class="ig" id="ins"></div></div>
+  <div class="section"><div class="shdr">All records — click row to edit</div><div style="overflow-x:auto" id="dtbl"></div></div>
+  `;
+
+  buildTabs(data); drawTrend(data); drawBP(data);
+  renderCorr(data); renderLag(data); renderAnom(data); renderIns(data); renderTbl(data);
+}
+
+// ── Trend ─────────────────────────────────────────────────────────────────────
+const TVARS = {
+  sbp:{l:'Systolic BP',c:'#ff5c5c',fn:d=>d.sbp},
+  dbp:{l:'Diastolic BP',c:'#ffb347',fn:d=>d.dbp},
+  hr:{l:'Heart Rate',c:'#4db8ff',fn:d=>d.hr},
+  wt:{l:'Weight',c:'#3ddc84',fn:d=>d.wt},
+  sp:{l:'SpO2',c:'#a78bfa',fn:d=>d.sp},
+};
+
+function buildTabs(data) {
+  document.getElementById('ttabs').innerHTML = Object.entries(TVARS).map(([k,v])=>
+    `<button class="tab${k===activeTab?' on':''}" onclick="swTab('${k}',this)">${v.l}</button>`
+  ).join('');
+}
+
+function swTab(k,btn) {
+  activeTab=k;
+  document.querySelectorAll('#ttabs .tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  drawTrend(byDate());
+}
+
+function roll7(arr) { return arr.map((_,i)=>{ const sl=arr.slice(Math.max(0,i-3),i+4).filter(x=>x!=null); return sl.length?+(sl.reduce((a,b)=>a+b,0)/sl.length).toFixed(2):null; }); }
+
+function drawTrend(data) {
+  const cfg=TVARS[activeTab];
+  const labels=data.map(d=>d.date.slice(5));
+  const vals=data.map(d=>cfg.fn(d));
+  const clean=vals.filter(x=>x!=null);
+  if (!clean.length) return;
+  const m=clean.reduce((a,b)=>a+b,0)/clean.length;
+  const s=Math.sqrt(clean.map(x=>(x-m)**2).reduce((a,b)=>a+b,0)/clean.length);
+  if (cInst){cInst.destroy();cInst=null;}
+  cInst=new Chart(document.getElementById('tc'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:cfg.l,data:vals,borderColor:cfg.c,backgroundColor:cfg.c+'18',borderWidth:1.5,pointRadius:3,tension:0.3,fill:false,spanGaps:true,
+       pointBackgroundColor:data.map(d=>d.imp?'#a78bfa':cfg.c)},
+      {label:'7d avg',data:roll7(vals),borderColor:'#ffffff44',borderDash:[4,3],borderWidth:1,pointRadius:0,tension:0.4,fill:false,spanGaps:true},
+      {label:'+2sd',data:data.map(()=>+(m+2*s).toFixed(1)),borderColor:'#ff5c5c33',borderDash:[3,4],borderWidth:1,pointRadius:0,fill:false},
+      {label:'-2sd',data:data.map(()=>+(m-2*s).toFixed(1)),borderColor:'#ff5c5c33',borderDash:[3,4],borderWidth:1,pointRadius:0,fill:'2'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a6380',font:{family:'IBM Plex Mono',size:10},maxRotation:45,maxTicksLimit:12},grid:{color:'#2a2f42'}},
+              y:{ticks:{color:'#5a6380',font:{family:'IBM Plex Mono',size:10}},grid:{color:'#2a2f42'}}}}
+  });
+}
+
+function drawBP(data) {
+  if (bInst){bInst.destroy();bInst=null;}
+  bInst=new Chart(document.getElementById('bc'),{
+    type:'line',
+    data:{labels:data.map(d=>d.date.slice(5)),datasets:[
+      {label:'Systolic',data:data.map(d=>d.sbp),borderColor:'#ff5c5c',backgroundColor:'rgba(255,92,92,0.07)',borderWidth:1.5,pointRadius:2,tension:0.3,fill:true},
+      {label:'Diastolic',data:data.map(d=>d.dbp),borderColor:'#ffb347',backgroundColor:'rgba(255,179,71,0.05)',borderWidth:1.5,pointRadius:2,tension:0.3,fill:true},
+      {label:'120',data:data.map(()=>120),borderColor:'#3ddc8428',borderDash:[4,4],borderWidth:1,pointRadius:0,fill:false},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a6380',font:{family:'IBM Plex Mono',size:10},maxRotation:45,maxTicksLimit:12},grid:{color:'#2a2f42'}},
+              y:{ticks:{color:'#5a6380',font:{family:'IBM Plex Mono',size:10}},grid:{color:'#2a2f42'},min:55}}}
+  });
+}
+
+// ── Correlation ───────────────────────────────────────────────────────────────
+function pearson(a,b) {
+  const pairs=a.map((v,i)=>[v,b[i]]).filter(([x,y])=>x!=null&&y!=null);
+  if(pairs.length<3) return 0;
+  const n=pairs.length,mx=pairs.reduce((s,[x])=>s+x,0)/n,my=pairs.reduce((s,[,y])=>s+y,0)/n;
+  const num=pairs.reduce((s,[x,y])=>s+(x-mx)*(y-my),0);
+  const dx=Math.sqrt(pairs.reduce((s,[x])=>s+(x-mx)**2,0));
+  const dy=Math.sqrt(pairs.reduce((s,[,y])=>s+(y-my)**2,0));
+  return dx*dy===0?0:+(num/(dx*dy)).toFixed(3);
+}
+
+function renderCorr(data) {
+  const keys=[{k:'wt',l:'Wt'},{k:'sbp',l:'SBP'},{k:'dbp',l:'DBP'},{k:'hr',l:'HR'},{k:'sp',l:'SpO2'}];
+  const n=keys.length;
+  let h=`<div class="corrg" style="grid-template-columns:40px repeat(${n},1fr)">`;
+  h+=`<div></div>`;
+  keys.forEach(v=>{ h+=`<div class="ccell" style="font-family:var(--mono);font-size:9px;color:var(--muted)">${v.l}</div>`; });
+  keys.forEach((v,i)=>{
+    h+=`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:4px">${v.l}</div>`;
+    keys.forEach((u,j)=>{
+      if(i===j){h+=`<div class="ccell" style="background:var(--s2);color:var(--muted)">—</div>`;return;}
+      const r=pearson(data.map(d=>d[v.k]),data.map(d=>d[u.k]));
+      const ab=Math.abs(r);
+      const bg=r>0?`rgba(61,220,132,${(ab*0.8).toFixed(2)})`:`rgba(255,92,92,${(ab*0.8).toFixed(2)})`;
+      const tc=ab>0.5?'#0b0d11':'var(--text)';
+      h+=`<div class="ccell" style="background:${bg};color:${tc}">${r.toFixed(2)}</div>`;
+    });
+  });
+  h+=`</div><div style="margin-top:8px;font-size:10px;color:var(--muted);font-family:var(--mono)"><span style="color:var(--green)">green</span>=pos <span style="color:var(--red)">red</span>=neg</div>`;
+  document.getElementById('corr').innerHTML=h;
+}
+
+// ── Lag ───────────────────────────────────────────────────────────────────────
+function renderLag(data) {
+  const wts=data.map(d=>d.wt), sbps=data.map(d=>d.sbp);
+  const maxL=Math.min(7,Math.floor(data.length/3));
+  const lags=[];
+  for(let lag=0;lag<=maxL;lag++){
+    const a=wts.slice(0,wts.length-lag||undefined);
+    const b=sbps.slice(lag);
+    lags.push({lag,r:pearson(a,b)});
+  }
+  const mx=Math.max(...lags.map(v=>Math.abs(v.r)),0.01);
+  let h=`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px">DAYS LAG &#8594; CORRELATION WITH SBP</div>`;
+  lags.forEach(({lag,r})=>{
+    const bw=Math.round((Math.abs(r)/mx)*100);
+    const col=r>=0?'var(--green)':'var(--red)';
+    h+=`<div class="lagrow"><span class="lagk">lag ${lag}d</span><div class="lagtrack"><div class="lagfill" style="width:${bw}%;background:${col}"></div></div><span class="lagv" style="color:${col}">${r>=0?'+':''}${r.toFixed(3)}</span></div>`;
+  });
+  const best=lags.reduce((a,b)=>Math.abs(b.r)>Math.abs(a.r)?b:a);
+  h+=`<div style="margin-top:8px;font-size:10px;color:var(--muted);font-family:var(--mono)">Peak lag <span style="color:var(--green)">${best.lag}d</span> (r=${best.r>=0?'+':''}${best.r.toFixed(3)})</div>`;
+  document.getElementById('lag').innerHTML=h;
+}
+
+// ── Anomalies ─────────────────────────────────────────────────────────────────
+function renderAnom(data) {
+  const vars=[{k:'sbp',l:'SBP',u:'mmHg'},{k:'dbp',l:'DBP',u:'mmHg'},{k:'hr',l:'HR',u:'bpm'},{k:'wt',l:'Weight',u:'kg'},{k:'sp',l:'SpO2',u:'%'}];
+  const avg=a=>a.reduce((s,v)=>s+v,0)/a.length;
+  const anoms=[];
+  vars.forEach(v=>{
+    const vals=data.map(d=>d[v.k]).filter(x=>x!=null);
+    if(vals.length<3) return;
+    const m=avg(vals), s=Math.sqrt(vals.map(x=>(x-m)**2).reduce((a,b)=>a+b,0)/vals.length);
+    data.forEach(row=>{
+      const val=row[v.k]; if(val==null) return;
+      const z=(val-m)/s;
+      if(Math.abs(z)>2) anoms.push({date:row.date,l:v.l,val,u:v.u,z,m:+m.toFixed(1),s:+s.toFixed(1)});
+    });
+  });
+  anoms.sort((a,b)=>Math.abs(b.z)-Math.abs(a.z));
+  if(!anoms.length){document.getElementById('anom').innerHTML=`<div style="text-align:center;padding:20px;font-family:var(--mono);font-size:11px;color:var(--green)">All readings within 2-sigma bounds</div>`;return;}
+  let t=`<table class="dt"><thead><tr><th>DATE</th><th>VAR</th><th>VALUE</th><th>RANGE</th><th>Z</th><th>STATUS</th></tr></thead><tbody>`;
+  anoms.slice(0,12).forEach(a=>{
+    const c=Math.abs(a.z)>3?'var(--red)':'var(--amber)';
+    t+=`<tr><td>${fmtD(a.date)}</td><td>${a.l}</td><td style="color:${c};font-weight:500">${a.val} ${a.u}</td><td style="color:var(--muted)">${a.m} +/- ${(2*a.s).toFixed(1)}</td><td>${a.z>=0?'+':''}${a.z.toFixed(2)}</td><td style="color:${c}">${a.z>0?'HIGH':'LOW'}</td></tr>`;
+  });
+  t+=`</tbody></table>`;
+  document.getElementById('anom').innerHTML=t;
+}
+
+// ── Insights ──────────────────────────────────────────────────────────────────
+function renderIns(data) {
+  const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;
+  const sbps=data.map(d=>d.sbp), hrs=data.map(d=>d.hr);
+  const wts=data.filter(d=>d.wt!=null).map(d=>d.wt);
+  const sps=data.filter(d=>d.sp!=null).map(d=>d.sp);
+  const ins=[];
+
+  if(data.length>=6){
+    const h=Math.floor(sbps.length/2);
+    const d=avg(sbps.slice(h))-avg(sbps.slice(0,h));
+    ins.push({c:d>5?'var(--red)':d<-5?'var(--green)':'var(--amber)',
+      t:`BP trend: ${d>5?'rising':d<-5?'improving':'stable'}`,
+      b:`SBP changed ${d>=0?'+':''}${d.toFixed(1)} mmHg from first to second half. ${d>5?'Worth monitoring.':d<-5?'Positive trend.':'Relatively stable.'}`});
+  }
+
+  if(wts.length>=4){
+    const r=pearson(data.map(d=>d.wt),data.map(d=>d.sbp));
+    const delta=wts.at(-1)-wts[0];
+    ins.push({c:Math.abs(r)>0.4?'var(--blue)':'var(--muted2)',
+      t:`Weight-BP correlation r=${r.toFixed(2)}`,
+      b:`Weight ${delta>=0?'+':''}${delta.toFixed(1)} kg over period. ${Math.abs(r)>0.4?'Meaningful':'Weak'} correlation with SBP (r=${r.toFixed(2)}).`});
+  }
+
+  const hiSBP=data.filter(r=>r.sbp>=140);
+  if(hiSBP.length){
+    ins.push({c:'var(--red)',t:`${hiSBP.length} reading${hiSBP.length>1?'s':''} >= 140 mmHg`,b:`Hypertensive readings on: ${hiSBP.slice(0,4).map(r=>fmtD(r.date)).join(', ')}${hiSBP.length>4?'...':''}. Consider physician review.`});
+  } else {
+    ins.push({c:'var(--green)',t:'No hypertensive readings',b:`All SBP values below 140 mmHg throughout the recorded period. Well controlled.`});
+  }
+
+  if(sps.length>=3){
+    const aS=avg(sps);
+    ins.push({c:aS>=95?'var(--green)':'var(--red)',t:`Avg SpO2 ${aS.toFixed(1)}%`,b:`Range ${Math.min(...sps).toFixed(1)}–${Math.max(...sps).toFixed(1)}%. ${aS>=95?'All values within normal range.':'Some values below 95% — monitor carefully.'}`});
+  }
+
+  const stdHR=Math.sqrt(hrs.map(x=>(x-avg(hrs))**2).reduce((a,b)=>a+b,0)/hrs.length);
+  ins.push({c:stdHR>15?'var(--amber)':'var(--muted2)',t:`HR variability: ${stdHR.toFixed(1)} bpm SD`,b:`${stdHR>15?'High variability may reflect activity, stress, or measurement timing.':'Heart rate variability is within normal limits.'}`});
+
+  document.getElementById('ins').innerHTML=ins.map(i=>
+    `<div class="ic" style="border-left-color:${i.c}"><div class="it" style="color:${i.c}">${i.t}</div><div class="ib">${i.b}</div></div>`
+  ).join('');
+}
+
+// ── Data table ────────────────────────────────────────────────────────────────
+function renderTbl(data) {
+  let t=`<table class="dt"><thead><tr><th>DATE</th><th>WT</th><th>SBP</th><th>DBP</th><th>HR</th><th>SPO2</th><th>FLAG</th></tr></thead><tbody>`;
+  data.forEach(r=>{
+    t+=`<tr class="${r.imp?'imp':''}" onclick="openEdit('${r.id}')" style="cursor:pointer">
+      <td>${fmtD(r.date)}</td><td>${r.wt!=null?r.wt:'—'}</td>
+      <td style="color:${r.sbp>=140?'var(--red)':r.sbp>=130?'var(--amber)':'var(--green)'}">${r.sbp}</td>
+      <td>${r.dbp}</td><td>${r.hr}</td><td>${r.sp!=null?r.sp:'—'}</td>
+      <td style="color:var(--purple)">${r.imp?'~imp':''}</td>
+    </tr>`;
+  });
+  t+=`</tbody></table>`;
+  document.getElementById('dtbl').innerHTML=t;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtD(d) {
+  if(!d) return '—';
+  const [y,m,dy]=d.split('-');
+  return `${dy}.${m}.${y}`;
+}
+
+function toast(msg, type='ok') {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast show '+type;
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2600);
+}
+
+init();
+</script>
+</body>
+</html>
